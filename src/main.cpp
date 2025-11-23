@@ -1,4 +1,7 @@
 #include <Arduino.h>
+#include <IRremote.h>
+
+#define IR_PIN 7
 
 // Pines del L298N
 #define IN1 11
@@ -13,6 +16,7 @@
 #define S3 2 // derecha
 
 int lastState = 0; // -1: izquierda, 0: centro, 1: derecha
+bool running = false;
 
 void setup()
 {
@@ -27,6 +31,8 @@ void setup()
   pinMode(S2, INPUT);
   pinMode(S3, INPUT);
 
+  IrReceiver.begin(IR_PIN, ENABLE_LED_FEEDBACK);
+
   Serial.println("Iniciando robot...");
 }
 
@@ -37,7 +43,7 @@ void seguir()
 
   digitalWrite(IN3, LOW);
   digitalWrite(IN4, HIGH);
-  Serial.println("seguir");
+  // Serial.println("seguir");
 }
 
 void parar()
@@ -47,7 +53,7 @@ void parar()
 
   digitalWrite(IN3, LOW);
   digitalWrite(IN4, LOW);
-  Serial.println("parar");
+  // Serial.println("parar");
 }
 
 void giroIzq()
@@ -57,7 +63,7 @@ void giroIzq()
 
   digitalWrite(IN3, LOW);
   digitalWrite(IN4, HIGH);
-  Serial.println("giro izquierda");
+  // Serial.println("giro izquierda");
   lastState = -1;
 }
 
@@ -79,57 +85,83 @@ void loop()
   int R = digitalRead(S3);
 
   // DEPURACIÓN SERIAL
-  Serial.print("L=");
+  /*Serial.print("L=");
   Serial.print(L);
   Serial.print("  C=");
   Serial.print(C);
   Serial.print("  R=");
   Serial.print(R);
-  Serial.print("  ---> ");
+  Serial.print("  ---> ");*/
 
-  if (C == LOW && L == LOW && R == LOW)
+  if (running)
   {
-    if (lastState == -1)
+    if (C == LOW && L == LOW && R == LOW)
+    {
+      if (lastState == -1)
+      {
+        giroIzq();
+      }
+      else if (lastState == 1)
+      {
+        giroDer();
+      }
+      else
+      {
+        seguir();
+      }
+    }
+    else if (C == LOW && L == LOW && R == HIGH)
+    {
+
+      giroDer();
+    }
+    else if (C == LOW && L == HIGH && R == LOW)
     {
       giroIzq();
     }
-    else if (lastState == 1)
-    {
-      giroDer();
-    }
-    else
+    else if (C == LOW && L == HIGH && R == HIGH)
     {
       seguir();
     }
+    else if (C == HIGH && L == LOW && R == LOW)
+    {
+      seguir();
+    }
+    else if (C == HIGH && L == LOW && R == HIGH)
+    {
+      giroDer();
+    }
+    else if (C == HIGH && L == HIGH && R == LOW)
+    {
+      giroIzq();
+    }
+    else if (C == HIGH && L == HIGH && R == HIGH)
+    {
+      parar();
+    }
   }
-  else if (C == LOW && L == LOW && R == HIGH)
+
+  if (IrReceiver.decode())
   {
 
-    giroDer();
-  }
-  else if (C == LOW && L == HIGH && R == LOW)
-  {
-    giroIzq();
-  }
-  else if (C == LOW && L == HIGH && R == HIGH)
-  {
-    seguir();
-  }
-  else if (C == HIGH && L == LOW && R == LOW)
-  {
-    seguir();
-  }
-  else if (C == HIGH && L == LOW && R == HIGH)
-  {
-    giroDer();
-  }
-  else if (C == HIGH && L == HIGH && R == LOW)
-  {
-    giroIzq();
-  }
-  else if (C == HIGH && L == HIGH && R == HIGH)
-  {
-    parar();
+    uint32_t code = IrReceiver.decodedIRData.decodedRawData;
+
+    Serial.println(code, HEX);
+
+    // ======== arrancar =========
+    if (code == 0xFC03EF00)
+    {
+      running = true;
+    }
+
+    // ======== detener =========
+    if (code == 0xFD02EF00)
+    {
+      running = false;
+      parar();
+    }
+
+    IrReceiver.resume();
   }
 
   delay(20);
